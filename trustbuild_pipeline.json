@@ -1,0 +1,161 @@
+{
+  "name": "IBM TrustBuild Pipeline",
+  "description": "The 4-stage Idea-to-Deployment pipeline: Intent Extraction → Architecture Mapping → Governance Guardrail → Secure Code Synthesis",
+  "id": "trustbuild-pipeline-v1",
+  "version": "1.0.0",
+  "metadata": {
+    "created_by": "IBM TrustBuild",
+    "hackathon": "IBM Dev Day: AI Demystified",
+    "date": "2026-01-31"
+  },
+  "nodes": [
+    {
+      "id": "node-input",
+      "type": "input",
+      "name": "User Prompt",
+      "description": "The user's natural language business idea",
+      "position": { "x": 100, "y": 200 },
+      "config": {
+        "input_type": "text",
+        "placeholder": "Describe your business idea..."
+      }
+    },
+    {
+      "id": "node-stage1",
+      "type": "llm_agent",
+      "name": "🔍 Intent Extraction Agent",
+      "description": "Parses the user prompt into structured technical requirements using IBM Granite",
+      "position": { "x": 350, "y": 100 },
+      "config": {
+        "model": "ibm/granite-3-8b-instruct",
+        "temperature": 0.2,
+        "max_tokens": 1024,
+        "system_prompt": "You are an expert IBM Cloud solutions architect. Analyze the user's requirement and extract structured technical needs. Output as JSON with: requirements (array), detected_sensitivity, applicable_frameworks.",
+        "output_format": "json"
+      }
+    },
+    {
+      "id": "node-stage2",
+      "type": "llm_agent",
+      "name": "🏗️ Architect Agent",
+      "description": "Maps requirements to IBM Cloud services and generates an architecture manifest",
+      "position": { "x": 600, "y": 50 },
+      "config": {
+        "model": "ibm/granite-3-8b-instruct",
+        "temperature": 0.2,
+        "max_tokens": 1500,
+        "system_prompt": "You are an IBM Cloud architect. Map technical requirements to IBM Cloud services. Select from: Code Engine, Cloudant, watsonx.ai, VPC, Key Protect, Object Storage. Output architecture manifest as JSON with services, networking, and security config.",
+        "output_format": "json",
+        "service_catalog_ref": "ibm_cloud_catalog"
+      }
+    },
+    {
+      "id": "node-policy-kb",
+      "type": "knowledge_base",
+      "name": "📋 Policy Knowledge Base",
+      "description": "The governance rulebook: HIPAA, SOC2, GDPR, and IBM baseline policies",
+      "position": { "x": 800, "y": 300 },
+      "config": {
+        "policies": [
+          "POL-HIPAA-001: Database VPC Isolation Required for PHI",
+          "POL-HIPAA-002: Encryption at Rest Required for PHI",
+          "POL-HIPAA-003: Audit Logging Required for PHI Access",
+          "POL-IBM-001: Encryption in Transit Required (all deployments)",
+          "POL-IBM-002: Private Endpoints for Sensitive Data",
+          "POL-SEC-001: No Public API Exposure for PHI/PCI/PII",
+          "POL-SEC-002: IAM Policies Required for Enterprise",
+          "POL-GDPR-001: EU Data Residency for GDPR"
+        ]
+      }
+    },
+    {
+      "id": "node-stage3",
+      "type": "llm_agent",
+      "name": "🛡️ Governance Guardrail (Auditor Agent)",
+      "description": "THE INNOVATION LAYER — Audits the architecture against policies. Auto-corrects violations before code generation.",
+      "position": { "x": 850, "y": 100 },
+      "config": {
+        "model": "ibm/granite-3-8b-instruct",
+        "temperature": 0.1,
+        "max_tokens": 1024,
+        "system_prompt": "You are a compliance auditor. Check the architecture manifest against the Policy Knowledge Base. For each violation: identify the issue, explain why it fails, and propose an auto-correction. Output: violations_found, violations_corrected, corrected_manifest, compliance_score.",
+        "output_format": "json",
+        "auto_correct": true,
+        "re_validate_after_correction": true
+      }
+    },
+    {
+      "id": "node-stage4",
+      "type": "llm_agent",
+      "name": "💻 Code Synthesis Agent",
+      "description": "Generates the deployment kit: Dockerfile, Terraform, app boilerplate with IBM SDKs pre-configured",
+      "position": { "x": 1100, "y": 100 },
+      "config": {
+        "model": "ibm/granite-20b-code",
+        "temperature": 0.3,
+        "max_tokens": 2048,
+        "system_prompt": "Generate production-ready deployment code based on the approved architecture manifest. Create: Dockerfile (security-hardened), main.tf (Terraform for IBM Cloud), main.py (FastAPI with IBM SDKs), requirements.txt. Ensure all security configs from the governance report are reflected in the code.",
+        "output_format": "multi_file",
+        "gate": "governance_approved"
+      }
+    },
+    {
+      "id": "node-output",
+      "type": "output",
+      "name": "📦 Deployment Kit",
+      "description": "The final downloadable deployment kit with all generated files and IBM CLI commands",
+      "position": { "x": 1350, "y": 200 },
+      "config": {
+        "output_type": "deployment_kit",
+        "include_cli_commands": true,
+        "include_readme": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "node-input",
+      "target": "node-stage1",
+      "label": "Raw prompt"
+    },
+    {
+      "id": "edge-2",
+      "source": "node-stage1",
+      "target": "node-stage2",
+      "label": "Structured requirements"
+    },
+    {
+      "id": "edge-3",
+      "source": "node-stage2",
+      "target": "node-stage3",
+      "label": "Architecture manifest"
+    },
+    {
+      "id": "edge-4",
+      "source": "node-policy-kb",
+      "target": "node-stage3",
+      "label": "Policy rules"
+    },
+    {
+      "id": "edge-5",
+      "source": "node-stage3",
+      "target": "node-stage4",
+      "label": "Approved manifest (governance passed ✓)"
+    },
+    {
+      "id": "edge-6",
+      "source": "node-stage4",
+      "target": "node-output",
+      "label": "Generated files + CLI commands"
+    }
+  ],
+  "flow_config": {
+    "execution_mode": "sequential",
+    "error_handling": "fail_fast",
+    "logging": true,
+    "stage_gating": {
+      "stage3_to_stage4": "governance_status must be 'passed' or 'corrected'"
+    }
+  }
+}
